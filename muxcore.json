@@ -1,0 +1,9 @@
+{
+  "name": "Worker Pool Memory",
+  "description": "In-memory distributed worker pool. Schedules tasks across cluster nodes with failover reassignment.",
+  "version": "0.1.0",
+  "author": "MuxCore",
+  "roles": ["infrastructure"],
+  "capabilities": ["worker.pool"],
+  "contracts": []
+}
