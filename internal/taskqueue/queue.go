@@ -229,6 +229,21 @@ func (q *Queue) Len() int {
 	return len(q.tasks)
 }
 
+// Stats returns count of tasks by status.
+func (q *Queue) Stats() map[string]int {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
+	stats := map[string]int{
+		"pending": 0, "assigned": 0, "running": 0,
+		"completed": 0, "failed": 0, "cancelled": 0,
+	}
+	for _, t := range q.tasks {
+		stats[string(t.Status)]++
+	}
+	return stats
+}
+
 func newID() string {
 	b := make([]byte, 16)
 	rand.Read(b)

@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/Muxcore-Media/worker-pool-memory/internal/taskqueue"
@@ -28,11 +29,29 @@ func New(q *taskqueue.Queue) *Server {
 	s.mux.HandleFunc("/fail/", s.handleFail)
 	s.mux.HandleFunc("/reassign/", s.handleReassign)
 	s.mux.HandleFunc("/health", s.handleHealth)
+	s.mux.HandleFunc("/metrics", s.handleMetrics)
 	return s
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+	stats := s.queue.Stats()
+	fmt.Fprintf(w, "# HELP worker_pool_tasks_pending Number of pending tasks\n")
+	fmt.Fprintf(w, "# TYPE worker_pool_tasks_pending gauge\n")
+	fmt.Fprintf(w, "worker_pool_tasks_pending %d\n", stats["pending"])
+	fmt.Fprintf(w, "# HELP worker_pool_tasks_running Number of running tasks\n")
+	fmt.Fprintf(w, "# TYPE worker_pool_tasks_running gauge\n")
+	fmt.Fprintf(w, "worker_pool_tasks_running %d\n", stats["running"])
+	fmt.Fprintf(w, "# HELP worker_pool_tasks_completed_total Total completed tasks\n")
+	fmt.Fprintf(w, "# TYPE worker_pool_tasks_completed_total counter\n")
+	fmt.Fprintf(w, "worker_pool_tasks_completed_total %d\n", stats["completed"])
+	fmt.Fprintf(w, "# HELP worker_pool_tasks_failed_total Total failed tasks\n")
+	fmt.Fprintf(w, "# TYPE worker_pool_tasks_failed_total counter\n")
+	fmt.Fprintf(w, "worker_pool_tasks_failed_total %d\n", stats["failed"])
 }
 
 // Handler returns the HTTP handler.
