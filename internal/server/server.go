@@ -27,7 +27,12 @@ func New(q *taskqueue.Queue) *Server {
 	s.mux.HandleFunc("/complete/", s.handleComplete)
 	s.mux.HandleFunc("/fail/", s.handleFail)
 	s.mux.HandleFunc("/reassign/", s.handleReassign)
+	s.mux.HandleFunc("/health", s.handleHealth)
 	return s
+}
+
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // Handler returns the HTTP handler.
