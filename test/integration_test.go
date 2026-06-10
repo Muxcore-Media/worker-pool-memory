@@ -1,10 +1,11 @@
 package test
 
 import (
-	"context"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -14,10 +15,21 @@ import (
 	"time"
 )
 
+func freePort(t *testing.T) string {
+	t.Helper()
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("free port: %v", err)
+	}
+	addr := lis.Addr().String()
+	lis.Close()
+	return addr
+}
+
 func TestWorkerPool_HTTP(t *testing.T) {
 	bin := buildModule(t)
-	addr := ":19401"
-	baseURL := "http://127.0.0.1" + addr
+	addr := freePort(t)
+	baseURL := "http://" + addr
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
