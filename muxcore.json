@@ -1,7 +1,8 @@
 {
   "name": "Worker Pool Memory",
-  "description": "In-memory distributed worker pool. Schedules tasks across cluster nodes with failover reassignment.",
+  "description": "DEPRECATED — prefer core built-in worker pool. Historical in-memory worker.pool sidecar.",
   "version": "0.1.0",
+  "deprecated": true,
   "author": "MuxCore",
   "roles": ["infrastructure"],
   "capabilities": ["worker.pool"],
