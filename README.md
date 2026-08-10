@@ -1,10 +1,10 @@
 # Worker Pool Memory
 
-In-memory distributed worker pool for MuxCore.
+> **Deprecated.** Prefer MuxCore **core’s built-in worker pool**. Do not invest in Phases 2–3 of this sidecar unless the built-in pool is proven insufficient. Kept in the official spool catalog only for compatibility (`deprecated: true`).
 
-Schedules tasks across cluster nodes with failover reassignment. Without this
-module, there is no distributed task execution, no module failover after node
-death, and no cross-node work distribution.
+In-memory distributed worker pool sidecar for MuxCore (historical).
+
+Schedules tasks across cluster nodes with failover reassignment. New deployments should use the core built-in pool instead of this module.
 
 ## How It Works
 
