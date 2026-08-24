@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/Muxcore-Media/worker-pool-memory/internal/taskqueue"
@@ -40,18 +41,18 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 	stats := s.queue.Stats()
-	fmt.Fprintf(w, "# HELP worker_pool_tasks_pending Number of pending tasks\n")
-	fmt.Fprintf(w, "# TYPE worker_pool_tasks_pending gauge\n")
-	fmt.Fprintf(w, "worker_pool_tasks_pending %d\n", stats["pending"])
-	fmt.Fprintf(w, "# HELP worker_pool_tasks_running Number of running tasks\n")
-	fmt.Fprintf(w, "# TYPE worker_pool_tasks_running gauge\n")
-	fmt.Fprintf(w, "worker_pool_tasks_running %d\n", stats["running"])
-	fmt.Fprintf(w, "# HELP worker_pool_tasks_completed_total Total completed tasks\n")
-	fmt.Fprintf(w, "# TYPE worker_pool_tasks_completed_total counter\n")
-	fmt.Fprintf(w, "worker_pool_tasks_completed_total %d\n", stats["completed"])
-	fmt.Fprintf(w, "# HELP worker_pool_tasks_failed_total Total failed tasks\n")
-	fmt.Fprintf(w, "# TYPE worker_pool_tasks_failed_total counter\n")
-	fmt.Fprintf(w, "worker_pool_tasks_failed_total %d\n", stats["failed"])
+	_, _ = fmt.Fprintf(w, "# HELP worker_pool_tasks_pending Number of pending tasks\n")
+	_, _ = fmt.Fprintf(w, "# TYPE worker_pool_tasks_pending gauge\n")
+	_, _ = fmt.Fprintf(w, "worker_pool_tasks_pending %d\n", stats["pending"])
+	_, _ = fmt.Fprintf(w, "# HELP worker_pool_tasks_running Number of running tasks\n")
+	_, _ = fmt.Fprintf(w, "# TYPE worker_pool_tasks_running gauge\n")
+	_, _ = fmt.Fprintf(w, "worker_pool_tasks_running %d\n", stats["running"])
+	_, _ = fmt.Fprintf(w, "# HELP worker_pool_tasks_completed_total Total completed tasks\n")
+	_, _ = fmt.Fprintf(w, "# TYPE worker_pool_tasks_completed_total counter\n")
+	_, _ = fmt.Fprintf(w, "worker_pool_tasks_completed_total %d\n", stats["completed"])
+	_, _ = fmt.Fprintf(w, "# HELP worker_pool_tasks_failed_total Total failed tasks\n")
+	_, _ = fmt.Fprintf(w, "# TYPE worker_pool_tasks_failed_total counter\n")
+	_, _ = fmt.Fprintf(w, "worker_pool_tasks_failed_total %d\n", stats["failed"])
 }
 
 // Handler returns the HTTP handler.
@@ -138,7 +139,10 @@ func (s *Server) handleAssign(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		NodeID string `json:"node_id"`
 	}
-	json.NewDecoder(r.Body).Decode(&req)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
 	if req.NodeID == "" {
 		writeError(w, http.StatusBadRequest, "node_id is required")
 		return
@@ -172,7 +176,10 @@ func (s *Server) handleFail(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Error string `json:"error"`
 	}
-	json.NewDecoder(r.Body).Decode(&req)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
 	if err := s.queue.Fail(id, req.Error); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -196,10 +203,11 @@ func (s *Server) handleReassign(w http.ResponseWriter, r *http.Request) {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		slog.Error("worker-pool: writeJSON", "error", err)
+	}
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
 }
-
