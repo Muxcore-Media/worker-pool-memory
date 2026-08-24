@@ -21,20 +21,20 @@ const (
 
 // Task is a unit of work.
 type Task struct {
-	ID            string            `json:"id"`
-	Type          string            `json:"type"`
-	Payload       []byte            `json:"payload,omitempty"`
-	AssignedNode  string            `json:"assigned_node,omitempty"`
-	Status        TaskStatus        `json:"status"`
-	MaxRetries    int               `json:"max_retries"`
-	RetryCount    int               `json:"retry_count"`
-	Capabilities  []string          `json:"capabilities,omitempty"`
-	Error         string            `json:"error,omitempty"`
-	IdempotencyKey string           `json:"idempotency_key,omitempty"`
-	Meta          map[string]any    `json:"meta,omitempty"`
-	CreatedAt     time.Time         `json:"created_at"`
-	StartedAt     time.Time         `json:"started_at,omitempty"`
-	CompletedAt   time.Time         `json:"completed_at,omitempty"`
+	ID             string         `json:"id"`
+	Type           string         `json:"type"`
+	Payload        []byte         `json:"payload,omitempty"`
+	AssignedNode   string         `json:"assigned_node,omitempty"`
+	Status         TaskStatus     `json:"status"`
+	MaxRetries     int            `json:"max_retries"`
+	RetryCount     int            `json:"retry_count"`
+	Capabilities   []string       `json:"capabilities,omitempty"`
+	Error          string         `json:"error,omitempty"`
+	IdempotencyKey string         `json:"idempotency_key,omitempty"`
+	Meta           map[string]any `json:"meta,omitempty"`
+	CreatedAt      time.Time      `json:"created_at"`
+	StartedAt      time.Time      `json:"started_at,omitempty"`
+	CompletedAt    time.Time      `json:"completed_at,omitempty"`
 }
 
 // Queue is an in-memory goroutine-safe task store.

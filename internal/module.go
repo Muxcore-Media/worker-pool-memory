@@ -81,7 +81,7 @@ func (m *Module) Start(ctx context.Context) error {
 
 func (m *Module) Stop(ctx context.Context) error {
 	if m.httpSrv != nil {
-		m.httpSrv.Shutdown(ctx)
+		_ = m.httpSrv.Shutdown(ctx)
 	}
 	slog.Info("worker-pool stopped")
 	return nil
