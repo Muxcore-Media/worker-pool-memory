@@ -101,8 +101,12 @@ func TestFailWithRetry(t *testing.T) {
 	q := New()
 	id, _ := q.Submit("test", nil, 3, nil, "", nil)
 
-	q.Assign(id, "node-1")
-	q.Fail(id, "transient error")
+	if err := q.Assign(id, "node-1"); err != nil {
+		t.Fatalf("Assign: %v", err)
+	}
+	if err := q.Fail(id, "transient error"); err != nil {
+		t.Fatalf("Fail: %v", err)
+	}
 
 	task, _ := q.Get(id)
 	if task.Status != StatusPending {
@@ -120,8 +124,12 @@ func TestFailNoRetry(t *testing.T) {
 	q := New()
 	id, _ := q.Submit("test", nil, 1, nil, "", nil)
 
-	q.Assign(id, "node-1")
-	q.Fail(id, "permanent error")
+	if err := q.Assign(id, "node-1"); err != nil {
+		t.Fatalf("Assign: %v", err)
+	}
+	if err := q.Fail(id, "permanent error"); err != nil {
+		t.Fatalf("Fail: %v", err)
+	}
 
 	task, _ := q.Get(id)
 	if task.Status != StatusFailed {
@@ -133,8 +141,12 @@ func TestComplete(t *testing.T) {
 	q := New()
 	id, _ := q.Submit("test", nil, 0, nil, "", nil)
 
-	q.Assign(id, "node-1")
-	q.Complete(id)
+	if err := q.Assign(id, "node-1"); err != nil {
+		t.Fatalf("Assign: %v", err)
+	}
+	if err := q.Complete(id); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
 
 	task, _ := q.Get(id)
 	if task.Status != StatusCompleted {
@@ -144,9 +156,15 @@ func TestComplete(t *testing.T) {
 
 func TestList(t *testing.T) {
 	q := New()
-	q.Submit("type-a", nil, 0, nil, "", nil)
-	q.Submit("type-b", nil, 0, nil, "", nil)
-	q.Submit("type-a", nil, 0, nil, "", nil)
+	if _, err := q.Submit("type-a", nil, 0, nil, "", nil); err != nil {
+		t.Fatalf("Submit type-a: %v", err)
+	}
+	if _, err := q.Submit("type-b", nil, 0, nil, "", nil); err != nil {
+		t.Fatalf("Submit type-b: %v", err)
+	}
+	if _, err := q.Submit("type-a", nil, 0, nil, "", nil); err != nil {
+		t.Fatalf("Submit type-a: %v", err)
+	}
 
 	if len(q.List("", "")) != 3 {
 		t.Errorf("List() = %d, want 3", len(q.List("", "")))
@@ -158,9 +176,13 @@ func TestList(t *testing.T) {
 
 func TestPendingTasks(t *testing.T) {
 	q := New()
-	q.Submit("a", nil, 0, nil, "", nil)
+	if _, err := q.Submit("a", nil, 0, nil, "", nil); err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
 	id2, _ := q.Submit("b", nil, 0, nil, "", nil)
-	q.Assign(id2, "node-1")
+	if err := q.Assign(id2, "node-1"); err != nil {
+		t.Fatalf("Assign: %v", err)
+	}
 
 	pending := q.PendingTasks()
 	if len(pending) != 1 {
@@ -171,15 +193,21 @@ func TestPendingTasks(t *testing.T) {
 func TestReassign(t *testing.T) {
 	q := New()
 	id, _ := q.Submit("test", nil, 0, nil, "", nil)
-	q.Assign(id, "node-1")
-	q.Complete(id)
+	if err := q.Assign(id, "node-1"); err != nil {
+		t.Fatalf("Assign: %v", err)
+	}
+	if err := q.Complete(id); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
 
 	if err := q.Reassign(id); err == nil {
 		t.Fatal("expected error for reassigning completed task")
 	}
 
 	id2, _ := q.Submit("test", nil, 0, nil, "", nil)
-	q.Assign(id2, "node-2")
+	if err := q.Assign(id2, "node-2"); err != nil {
+		t.Fatalf("Assign: %v", err)
+	}
 	if err := q.Reassign(id2); err != nil {
 		t.Fatalf("Reassign: %v", err)
 	}
