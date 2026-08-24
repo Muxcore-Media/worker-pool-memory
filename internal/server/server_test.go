@@ -18,8 +18,8 @@ func newTestServer(t *testing.T) *Server {
 func TestSubmit(t *testing.T) {
 	srv := newTestServer(t)
 	body, _ := json.Marshal(map[string]any{
-		"type":       "transcode",
-		"payload":    []byte(`{"file":"movie.mkv"}`),
+		"type":        "transcode",
+		"payload":     []byte(`{"file":"movie.mkv"}`),
 		"max_retries": 3,
 	})
 	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader(body))
@@ -32,7 +32,9 @@ func TestSubmit(t *testing.T) {
 	var resp struct {
 		TaskID string `json:"task_id"`
 	}
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
 	if resp.TaskID == "" {
 		t.Fatal("expected non-empty task_id")
 	}
@@ -62,7 +64,9 @@ func TestStatus(t *testing.T) {
 	var resp struct {
 		TaskID string `json:"task_id"`
 	}
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
 	if resp.TaskID == "" {
 		t.Fatal("submit: empty task_id")
 	}
@@ -74,7 +78,9 @@ func TestStatus(t *testing.T) {
 		t.Fatalf("GET /status: %d", w2.Code)
 	}
 	var task taskqueue.Task
-	json.NewDecoder(w2.Body).Decode(&task)
+	if err := json.NewDecoder(w2.Body).Decode(&task); err != nil {
+		t.Fatalf("decode task: %v", err)
+	}
 	if task.Type != "test" {
 		t.Errorf("Type = %q, want %q", task.Type, "test")
 	}
@@ -96,7 +102,9 @@ func TestList(t *testing.T) {
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 	var tasks []any
-	json.NewDecoder(w.Body).Decode(&tasks)
+	if err := json.NewDecoder(w.Body).Decode(&tasks); err != nil {
+		t.Fatalf("decode tasks: %v", err)
+	}
 	if len(tasks) != 3 {
 		t.Errorf("expected 3 tasks, got %d", len(tasks))
 	}
@@ -104,7 +112,9 @@ func TestList(t *testing.T) {
 	req2 := httptest.NewRequest(http.MethodGet, "/list?type=a", nil)
 	w2 := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w2, req2)
-	json.NewDecoder(w2.Body).Decode(&tasks)
+	if err := json.NewDecoder(w2.Body).Decode(&tasks); err != nil {
+		t.Fatalf("decode filtered tasks: %v", err)
+	}
 	if len(tasks) != 2 {
 		t.Errorf("expected 2 type-a tasks, got %d", len(tasks))
 	}
@@ -122,7 +132,9 @@ func TestCancel(t *testing.T) {
 	var resp struct {
 		TaskID string `json:"task_id"`
 	}
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
 	if resp.TaskID == "" {
 		t.Fatal("submit: empty task_id")
 	}
@@ -147,7 +159,9 @@ func TestAssignCompleteFail(t *testing.T) {
 	var resp struct {
 		TaskID string `json:"task_id"`
 	}
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
 	if resp.TaskID == "" {
 		t.Fatal("submit: empty task_id")
 	}
@@ -182,7 +196,9 @@ func TestReassign(t *testing.T) {
 	var resp struct {
 		TaskID string `json:"task_id"`
 	}
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
 	if resp.TaskID == "" {
 		t.Fatal("submit: empty task_id")
 	}
