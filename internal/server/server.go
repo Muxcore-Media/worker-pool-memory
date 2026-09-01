@@ -5,21 +5,39 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/Muxcore-Media/worker-pool-memory/internal/taskqueue"
 )
 
 // Server provides the HTTP API for the worker pool.
 type Server struct {
-	queue *taskqueue.Queue
-	mux   *http.ServeMux
+	queue    *taskqueue.Queue
+	mux      *http.ServeMux
+	apiToken string
+}
+
+// Config configures the HTTP worker pool API.
+type Config struct {
+	Queue    *taskqueue.Queue
+	APIToken string
 }
 
 // New creates an HTTP server backed by the task queue.
 func New(q *taskqueue.Queue) *Server {
+	return NewWithConfig(Config{Queue: q})
+}
+
+// NewWithConfig creates a server with optional API token auth.
+func NewWithConfig(cfg Config) *Server {
 	s := &Server{
-		queue: q,
+		queue: cfg.Queue,
 		mux:   http.NewServeMux(),
+	}
+	s.apiToken = strings.TrimSpace(cfg.APIToken)
+	if s.apiToken == "" {
+		s.apiToken = strings.TrimSpace(os.Getenv("WORKER_POOL_API_TOKEN"))
 	}
 	s.mux.HandleFunc("/submit", s.handleSubmit)
 	s.mux.HandleFunc("/status/", s.handleStatus)
@@ -74,6 +92,9 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "POST required")
 		return
 	}
+	if !s.requireAuth(w, r) {
+		return
+	}
 	var req submitRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -97,7 +118,11 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "GET required")
 		return
 	}
-	id := r.URL.Path[len("/status/"):]
+	id := strings.TrimPrefix(r.URL.Path, "/status/")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "task id is required")
+		return
+	}
 	task, err := s.queue.Get(id)
 	if err != nil {
 		writeError(w, http.StatusNotFound, err.Error())
@@ -111,7 +136,14 @@ func (s *Server) handleCancel(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "POST required")
 		return
 	}
-	id := r.URL.Path[len("/cancel/"):]
+	if !s.requireAuth(w, r) {
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/cancel/")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "task id is required")
+		return
+	}
 	if err := s.queue.Cancel(id); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -135,7 +167,14 @@ func (s *Server) handleAssign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "POST required")
 		return
 	}
-	id := r.URL.Path[len("/assign/"):]
+	if !s.requireAuth(w, r) {
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/assign/")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "task id is required")
+		return
+	}
 	var req struct {
 		NodeID string `json:"node_id"`
 	}
@@ -159,7 +198,14 @@ func (s *Server) handleComplete(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "POST required")
 		return
 	}
-	id := r.URL.Path[len("/complete/"):]
+	if !s.requireAuth(w, r) {
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/complete/")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "task id is required")
+		return
+	}
 	if err := s.queue.Complete(id); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -172,7 +218,14 @@ func (s *Server) handleFail(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "POST required")
 		return
 	}
-	id := r.URL.Path[len("/fail/"):]
+	if !s.requireAuth(w, r) {
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/fail/")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "task id is required")
+		return
+	}
 	var req struct {
 		Error string `json:"error"`
 	}
@@ -192,7 +245,14 @@ func (s *Server) handleReassign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "POST required")
 		return
 	}
-	id := r.URL.Path[len("/reassign/"):]
+	if !s.requireAuth(w, r) {
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/reassign/")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "task id is required")
+		return
+	}
 	if err := s.queue.Reassign(id); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

@@ -2,10 +2,13 @@ package taskqueue
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 )
+
+const DefaultCapacity = 10000
 
 // TaskStatus represents the lifecycle of a task.
 type TaskStatus string
@@ -39,13 +42,17 @@ type Task struct {
 
 // Queue is an in-memory goroutine-safe task store.
 type Queue struct {
-	mu    sync.RWMutex
-	tasks map[string]*Task
+	mu       sync.RWMutex
+	tasks    map[string]*Task
+	capacity int
 }
 
-// New creates an empty task queue.
-func New() *Queue {
-	return &Queue{tasks: make(map[string]*Task)}
+// New creates an empty task queue with the given capacity (0 uses DefaultCapacity).
+func New(capacity int) *Queue {
+	if capacity <= 0 {
+		capacity = DefaultCapacity
+	}
+	return &Queue{tasks: make(map[string]*Task), capacity: capacity}
 }
 
 // Submit creates a new task in pending state. Returns the task ID.
@@ -54,37 +61,43 @@ func (q *Queue) Submit(taskType string, payload []byte, maxRetries int, capabili
 		return "", fmt.Errorf("task type is required")
 	}
 
-	// Check idempotency key for duplicates.
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
 	if idempotencyKey != "" {
-		q.mu.RLock()
 		for _, t := range q.tasks {
 			if t.IdempotencyKey == idempotencyKey && t.Status != StatusFailed {
-				q.mu.RUnlock()
 				return t.ID, nil
 			}
 		}
-		q.mu.RUnlock()
+	}
+
+	if len(q.tasks) >= q.capacity {
+		return "", fmt.Errorf("queue full (capacity %d)", q.capacity)
+	}
+
+	id, err := newID()
+	if err != nil {
+		return "", fmt.Errorf("generate task id: %w", err)
 	}
 
 	task := &Task{
-		ID:             newID(),
+		ID:             id,
 		Type:           taskType,
-		Payload:        payload,
+		Payload:        append([]byte(nil), payload...),
 		Status:         StatusPending,
 		MaxRetries:     maxRetries,
-		Capabilities:   capabilities,
+		Capabilities:   append([]string(nil), capabilities...),
 		IdempotencyKey: idempotencyKey,
-		Meta:           meta,
+		Meta:           copyMeta(meta),
 		CreatedAt:      time.Now(),
 	}
 
-	q.mu.Lock()
 	q.tasks[task.ID] = task
-	q.mu.Unlock()
 	return task.ID, nil
 }
 
-// Get returns a task by ID.
+// Get returns a copy of a task by ID.
 func (q *Queue) Get(id string) (*Task, error) {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
@@ -93,7 +106,7 @@ func (q *Queue) Get(id string) (*Task, error) {
 	if !ok {
 		return nil, fmt.Errorf("task %q not found", id)
 	}
-	return t, nil
+	return copyTask(t), nil
 }
 
 // Cancel sets a pending/assigned task to cancelled. Returns error for already
@@ -138,6 +151,29 @@ func (q *Queue) Assign(id, nodeID string) error {
 	return nil
 }
 
+// MarkRunning marks an assigned task as running.
+func (q *Queue) MarkRunning(id string) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	t, ok := q.tasks[id]
+	if !ok {
+		return fmt.Errorf("task %q not found", id)
+	}
+	switch t.Status {
+	case StatusAssigned:
+		t.Status = StatusRunning
+		if t.StartedAt.IsZero() {
+			t.StartedAt = time.Now()
+		}
+		return nil
+	case StatusRunning:
+		return nil
+	default:
+		return fmt.Errorf("task %q cannot start (status: %s)", id, t.Status)
+	}
+}
+
 // Complete sets a task to completed.
 func (q *Queue) Complete(id string) error {
 	q.mu.Lock()
@@ -147,9 +183,18 @@ func (q *Queue) Complete(id string) error {
 	if !ok {
 		return fmt.Errorf("task %q not found", id)
 	}
-	t.Status = StatusCompleted
-	t.CompletedAt = time.Now()
-	return nil
+	switch t.Status {
+	case StatusAssigned, StatusRunning:
+		t.Status = StatusCompleted
+		t.CompletedAt = time.Now()
+		return nil
+	case StatusCompleted:
+		return fmt.Errorf("task %q is already completed", id)
+	case StatusCancelled:
+		return fmt.Errorf("task %q is cancelled", id)
+	default:
+		return fmt.Errorf("task %q cannot complete (status: %s)", id, t.Status)
+	}
 }
 
 // Fail sets a task to failed. If retries remain, resets to pending.
@@ -160,6 +205,11 @@ func (q *Queue) Fail(id, errMsg string) error {
 	t, ok := q.tasks[id]
 	if !ok {
 		return fmt.Errorf("task %q not found", id)
+	}
+	switch t.Status {
+	case StatusAssigned, StatusRunning:
+	default:
+		return fmt.Errorf("task %q cannot fail (status: %s)", id, t.Status)
 	}
 	t.RetryCount++
 	t.Error = errMsg
@@ -173,7 +223,7 @@ func (q *Queue) Fail(id, errMsg string) error {
 	return nil
 }
 
-// List returns tasks filtered by status and/or type.
+// List returns copies of tasks filtered by status and/or type.
 func (q *Queue) List(statusFilter, typeFilter string) []*Task {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
@@ -186,12 +236,12 @@ func (q *Queue) List(statusFilter, typeFilter string) []*Task {
 		if typeFilter != "" && t.Type != typeFilter {
 			continue
 		}
-		result = append(result, t)
+		result = append(result, copyTask(t))
 	}
 	return result
 }
 
-// PendingTasks returns all pending tasks sorted by creation time (oldest first).
+// PendingTasks returns copies of pending tasks.
 func (q *Queue) PendingTasks() []*Task {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
@@ -199,7 +249,7 @@ func (q *Queue) PendingTasks() []*Task {
 	var result []*Task
 	for _, t := range q.tasks {
 		if t.Status == StatusPending {
-			result = append(result, t)
+			result = append(result, copyTask(t))
 		}
 	}
 	return result
@@ -229,6 +279,11 @@ func (q *Queue) Len() int {
 	return len(q.tasks)
 }
 
+// Capacity returns the configured maximum number of tasks.
+func (q *Queue) Capacity() int {
+	return q.capacity
+}
+
 // Stats returns count of tasks by status.
 func (q *Queue) Stats() map[string]int {
 	q.mu.RLock()
@@ -244,8 +299,39 @@ func (q *Queue) Stats() map[string]int {
 	return stats
 }
 
-func newID() string {
-	b := make([]byte, 16)
-	rand.Read(b)
-	return fmt.Sprintf("%x", b)
+func copyTask(t *Task) *Task {
+	if t == nil {
+		return nil
+	}
+	out := *t
+	if t.Payload != nil {
+		out.Payload = append([]byte(nil), t.Payload...)
+	}
+	if t.Capabilities != nil {
+		out.Capabilities = append([]string(nil), t.Capabilities...)
+	}
+	out.Meta = copyMeta(t.Meta)
+	return &out
 }
+
+func copyMeta(meta map[string]any) map[string]any {
+	if meta == nil {
+		return nil
+	}
+	out := make(map[string]any, len(meta))
+	for k, v := range meta {
+		out[k] = v
+	}
+	return out
+}
+
+func newID() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", b), nil
+}
+
+// ErrQueueFull is returned when Submit would exceed capacity.
+var ErrQueueFull = errors.New("queue full")

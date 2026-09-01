@@ -1,10 +1,10 @@
 {
   "name": "Worker Pool Memory",
-  "description": "DEPRECATED — prefer core built-in worker pool. Historical in-memory worker.pool sidecar.",
+  "description": "DEPRECATED — prefer core built-in worker pool. Historical in-memory HTTP task store (not contracts.WorkerPool).",
   "version": "0.1.0",
   "deprecated": true,
   "author": "MuxCore",
   "roles": ["infrastructure"],
-  "capabilities": ["worker.pool"],
+  "capabilities": [],
   "contracts": []
 }

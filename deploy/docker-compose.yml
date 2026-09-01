@@ -1,29 +1,15 @@
 services:
-  core:
-    image: ghcr.io/muxcore-media/core:latest
-    ports:
-      - "9090:9090"
-    environment:
-      MUXCORE_INSECURE_DISABLE_TLS: "true"
-      MUXCORE_LOG_LEVEL: debug
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--tries=1", "--spider", "http://localhost:9090/health"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 5s
-
-  your-module:
+  worker-pool-memory:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     ports:
-      - "9400"
+      - "9300:9300"
     environment:
       MUXCORE_GRPC_ADDR: core:9090
       MUXCORE_INSECURE_DISABLE_TLS: "true"
       MUXCORE_LOG_LEVEL: debug
-      MUXCORE_MODULE_ID: your-module
-    depends_on:
-      core:
-        condition: service_healthy
+      MUXCORE_MODULE_ID: worker-pool-memory
+      WORKER_POOL_HTTP_ADDR: "0.0.0.0:9300"
+      WORKER_POOL_API_TOKEN: "${WORKER_POOL_API_TOKEN:-dev-token-change-me}"
+    restart: unless-stopped

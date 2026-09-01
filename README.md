@@ -1,69 +1,73 @@
 # Worker Pool Memory
 
-> **Deprecated.** Prefer MuxCore **core’s built-in worker pool**. Do not invest in Phases 2–3 of this sidecar unless the built-in pool is proven insufficient. Kept in the official spool catalog only for compatibility (`deprecated: true`).
+> **Deprecated.** Prefer MuxCore **core's built-in worker pool**. This sidecar is a simple in-memory HTTP task store kept for compatibility (`deprecated: true` in `muxcore.json`). It does **not** implement `contracts.WorkerPool` — no mesh/gRPC submit/status/cancel RPCs, no executor discovery, no cluster heartbeat reaper.
 
-In-memory distributed worker pool sidecar for MuxCore (historical).
+## What it actually is
 
-Schedules tasks across cluster nodes with failover reassignment. New deployments should use the core built-in pool instead of this module.
-
-## How It Works
+An optional HTTP sidecar that stores task records in memory. Clients call REST endpoints directly; workers poll or get assigned via HTTP. State is lost on restart.
 
 ```
-Module submits task via WorkerPool.Submit()
-        │
-        ▼
-worker-pool-memory enqueues task
-        │
-        ▼
-Task assigned to available node (by capability match)
-        │
-        ▼
-Node's executor module picks up task via gRPC
-        │
-        ▼
-Executor calls back with result → status updated
+Client POST /submit  →  in-memory map  →  worker POST /assign, /complete, /fail
 ```
 
-### Task Lifecycle
+This is **not** a drop-in replacement for core's worker pool. Enabling both registers two different implementations of the same role unless you take care:
 
-```
-pending ──→ assigned ──→ running ──→ completed
-                  │                   
-                  └──→ running ──→ failed (retry if MaxRetries > 0)
-                            
-running ──→ pending (reassigned on node heartbeat timeout)
-```
+| Component | Role |
+|-----------|------|
+| **core built-in worker pool** | Default when `MVP_ENABLE_WORKER_POOL` is unset |
+| **worker-pool-memory** | Optional sidecar when `MVP_ENABLE_WORKER_POOL=1` in `_mvp/run-host.sh` |
 
-### Executor Discovery
-
-Worker modules implement `contracts.Executor` and register with capabilities
-matching the task types they handle. The worker pool discovers them via
-`Registry.FindByCapability`:
-
-```go
-type Executor interface {
-    CanHandle(taskType string) bool
-    Execute(ctx context.Context, task WorkerTask) ([]byte, error)
-}
-```
+Do **not** set `WORKER_POOL_ADVERTISE_CAPABILITY=1` unless you intentionally want this module to claim `worker.pool` on the mesh (collides with core). Default registration omits that capability.
 
 ## Configuration
 
-### CLI Flags
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WORKER_POOL_HTTP_ADDR` | `127.0.0.1:9300` | HTTP listen address |
+| `WORKER_POOL_API_TOKEN` | (empty) | Required when binding a non-loopback address; send as `X-Worker-Pool-Token` or `Authorization: Bearer` |
+| `WORKER_POOL_QUEUE_CAPACITY` | `10000` | Maximum tasks held in memory; `Submit` rejects when full |
+| `WORKER_POOL_ADVERTISE_CAPABILITY` | unset | Set to `1` to advertise `worker.pool` on registration (discouraged) |
+| `MVP_ENABLE_WORKER_POOL` | `0` | `_mvp/run-host.sh` — start this sidecar alongside core |
+| `MUXCORE_GRPC_ADDR` | (SDK default) | Core mesh address for sidecar registration |
+| `MUXCORE_MODULE_ID` | `worker-pool-memory` | Module identity |
+| `MUXCORE_INSECURE_DISABLE_TLS` | unset | Dev-only: disable TLS to core |
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--queue-capacity` | `10000` | Maximum pending tasks |
-| `--heartbeat-timeout` | `30s` | Node heartbeat timeout before reassign |
-| `--max-retries` | `3` | Default max retry attempts per task |
-| `--rebalance-interval` | `60s` | How often to check for idle nodes |
+## HTTP API
 
-## Implementation
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `POST` | `/submit` | yes | Create a task (`type` required; optional `payload`, `max_retries`, `capabilities`, `idempotency_key`, `meta`) |
+| `GET` | `/status/{id}` | no | Fetch task snapshot |
+| `POST` | `/cancel/{id}` | yes | Cancel pending/assigned task |
+| `GET` | `/list` | no | List tasks (`?status=`, `?type=`) |
+| `POST` | `/assign/{id}` | yes | Assign pending task (`node_id` required) |
+| `POST` | `/complete/{id}` | yes | Complete assigned/running task |
+| `POST` | `/fail/{id}` | yes | Fail assigned/running task (`error` optional); retries reset to pending when under `max_retries` |
+| `POST` | `/reassign/{id}` | yes | Move task back to pending |
+| `GET` | `/health` | no | Liveness |
+| `GET` | `/metrics` | no | Prometheus gauges for pending/running/completed/failed |
 
-- Registers with capability: `"worker.pool"`
-- Implements `contracts.WorkerPool` (Submit, Status, Cancel, List, Reassign)
-- In-memory priority queue (heap-based)
-- Watches cluster events for node liveness
-- Executor discovery via registry polling
-- Supports `IdempotencyKey` for exactly-once execution
-- Published events: `worker.task.*`
+### Task lifecycle
+
+```
+pending → assigned → running → completed
+              │          │
+              └──────────┴→ failed (retry → pending when retries remain)
+pending/assigned → cancelled
+```
+
+Idempotency: when `idempotency_key` is set, duplicate submits return the existing task id for all non-failed tasks (exactly-once submit semantics; failed tasks may be resubmitted with the same key).
+
+## Build & test
+
+```bash
+cd worker-pool-memory
+go test -race ./...
+golangci-lint run
+```
+
+## Operator notes
+
+- Default bind is loopback-only. For LAN/container exposure set `WORKER_POOL_HTTP_ADDR` **and** `WORKER_POOL_API_TOKEN`.
+- `_mvp/run-host.sh` uses `127.0.0.1:9300` when `MVP_ENABLE_WORKER_POOL=1`.
+- Port reference: `_mvp/PORTS.md` (`9300`).
