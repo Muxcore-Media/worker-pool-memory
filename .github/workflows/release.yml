@@ -7,15 +7,22 @@ jobs:
   goreleaser:
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
+      - uses: Muxcore-Media/mvp/.github/actions/checkout-mirror@main
         with:
-          path: core
-          repository: Muxcore-Media/core
-          fetch-depth: 0
-      - uses: actions/checkout@v4
-        with:
-          path: worker-pool-memory
-          fetch-depth: 0
+          token: ${{ secrets.MUXCORE_CI_TOKEN || github.token }}
+      - name: Checkout core dependency
+        env:
+          TOKEN: ${{ secrets.MUXCORE_CI_TOKEN || github.token }}
+        run: |
+          git clone "https://x-access-token:${TOKEN}@github.com/Muxcore-Media/core.git" core
+      - name: Prepare workspace layout
+        run: |
+          mkdir -p worker-pool-memory
+          shopt -s dotglob
+          for item in *; do
+            case "$item" in core|worker-pool-memory) continue ;; esac
+            mv "$item" worker-pool-memory/
+          done
       - uses: actions/setup-go@v7
         with:
           go-version: "1.26"

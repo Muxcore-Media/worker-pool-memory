@@ -11,14 +11,22 @@ jobs:
   lint:
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v7
+      - uses: Muxcore-Media/mvp/.github/actions/checkout-mirror@main
         with:
-          path: core
-          repository: Muxcore-Media/core
-          token: ${{ secrets.MUXCORE_CI_TOKEN }}
-      - uses: actions/checkout@v7
-        with:
-          path: worker-pool-memory
+          token: ${{ secrets.MUXCORE_CI_TOKEN || github.token }}
+      - name: Checkout core dependency
+        env:
+          TOKEN: ${{ secrets.MUXCORE_CI_TOKEN || github.token }}
+        run: |
+          git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/Muxcore-Media/core.git" core
+      - name: Prepare workspace layout
+        run: |
+          mkdir -p worker-pool-memory
+          shopt -s dotglob
+          for item in *; do
+            case "$item" in core|worker-pool-memory) continue ;; esac
+            mv "$item" worker-pool-memory/
+          done
       - uses: actions/setup-go@v7
         with:
           go-version: "1.26"
@@ -29,14 +37,22 @@ jobs:
   test:
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v7
+      - uses: Muxcore-Media/mvp/.github/actions/checkout-mirror@main
         with:
-          path: core
-          repository: Muxcore-Media/core
-          token: ${{ secrets.MUXCORE_CI_TOKEN }}
-      - uses: actions/checkout@v7
-        with:
-          path: worker-pool-memory
+          token: ${{ secrets.MUXCORE_CI_TOKEN || github.token }}
+      - name: Checkout core dependency
+        env:
+          TOKEN: ${{ secrets.MUXCORE_CI_TOKEN || github.token }}
+        run: |
+          git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/Muxcore-Media/core.git" core
+      - name: Prepare workspace layout
+        run: |
+          mkdir -p worker-pool-memory
+          shopt -s dotglob
+          for item in *; do
+            case "$item" in core|worker-pool-memory) continue ;; esac
+            mv "$item" worker-pool-memory/
+          done
       - uses: actions/setup-go@v7
         with:
           go-version: "1.26"
@@ -47,14 +63,22 @@ jobs:
   build:
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v7
+      - uses: Muxcore-Media/mvp/.github/actions/checkout-mirror@main
         with:
-          path: core
-          repository: Muxcore-Media/core
-          token: ${{ secrets.MUXCORE_CI_TOKEN }}
-      - uses: actions/checkout@v7
-        with:
-          path: worker-pool-memory
+          token: ${{ secrets.MUXCORE_CI_TOKEN || github.token }}
+      - name: Checkout core dependency
+        env:
+          TOKEN: ${{ secrets.MUXCORE_CI_TOKEN || github.token }}
+        run: |
+          git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/Muxcore-Media/core.git" core
+      - name: Prepare workspace layout
+        run: |
+          mkdir -p worker-pool-memory
+          shopt -s dotglob
+          for item in *; do
+            case "$item" in core|worker-pool-memory) continue ;; esac
+            mv "$item" worker-pool-memory/
+          done
       - uses: actions/setup-go@v7
         with:
           go-version: "1.26"
@@ -69,14 +93,22 @@ jobs:
     runs-on: self-hosted
     needs: [lint, test, build]
     steps:
-      - uses: actions/checkout@v7
+      - uses: Muxcore-Media/mvp/.github/actions/checkout-mirror@main
         with:
-          path: core
-          repository: Muxcore-Media/core
-          token: ${{ secrets.MUXCORE_CI_TOKEN }}
-      - uses: actions/checkout@v7
-        with:
-          path: worker-pool-memory
+          token: ${{ secrets.MUXCORE_CI_TOKEN || github.token }}
+      - name: Checkout core dependency
+        env:
+          TOKEN: ${{ secrets.MUXCORE_CI_TOKEN || github.token }}
+        run: |
+          git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/Muxcore-Media/core.git" core
+      - name: Prepare workspace layout
+        run: |
+          mkdir -p worker-pool-memory
+          shopt -s dotglob
+          for item in *; do
+            case "$item" in core|worker-pool-memory) continue ;; esac
+            mv "$item" worker-pool-memory/
+          done
       - uses: docker/setup-buildx-action@v4
       - name: Lowercase image name
         run: echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
