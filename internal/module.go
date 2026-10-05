@@ -9,6 +9,8 @@ import (
 	"os"
 
 	"github.com/Muxcore-Media/core/pkg/contracts"
+	modulesdk "github.com/Muxcore-Media/core/sdk/go/module"
+	manifest "github.com/Muxcore-Media/worker-pool-memory"
 	"github.com/Muxcore-Media/worker-pool-memory/internal/server"
 	"github.com/Muxcore-Media/worker-pool-memory/internal/taskqueue"
 )
@@ -47,7 +49,7 @@ func (m *Module) Info() contracts.ModuleInfo {
 	return contracts.ModuleInfo{
 		ID:           m.id,
 		Name:         "Worker Pool Memory",
-		Version:      "0.1.0",
+		Version:      modulesdk.ManifestVersion(manifest.ManifestJSON),
 		Roles:        []string{"infrastructure"},
 		Description:  "In-memory distributed worker pool for task execution",
 		Author:       "MuxCore",
